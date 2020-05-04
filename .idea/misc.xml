@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
+      <list>
+        <option value="$PROJECT_DIR$/pom.xml" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_1_6" project-jdk-name="1.8" project-jdk-type="JavaSDK">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+  <component name="SbtLocalSettings">
+    <option name="modificationStamps">
+      <map>
+        <entry key="$USER_HOME$/Desktop/18655-Spring-2017-Team-9/play" value="1491956671000" />
+        <entry key="$USER_HOME$/Desktop/18655Team/18655-Spring-2017-Team-9" value="1490577063000" />
+        <entry key="$USER_HOME$/Desktop/18655Team/18655-Spring-2017-Team-9/play" value="1490985838000" />
+        <entry key="$USER_HOME$/Desktop/18655Team/play-java" value="1490216104000" />
+        <entry key="$USER_HOME$/Desktop/18656/team/18656-Fall2016-Team3-master/SOSECommunity" value="1481909110000" />
+        <entry key="$USER_HOME$/Desktop/18656/team/18656-Fall2017-Team8/SOSECommunity" value="1509170016000" />
+      </map>
+    </option>
+    <option name="externalProjectsViewState">
+      <projects_view />
+    </option>
+  </component>
+  <component name="SuppressABINotification">
+    <option name="modulesWithSuppressedNotConfigured">
+      <set>
+        <option value="nioeasyrpc" />
+      </set>
+    </option>
+  </component>
+</project>

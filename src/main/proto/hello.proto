@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+option java_multiple_files = true;
+option java_package = "com.zxc.nioeasyrpc.proto";
+option java_outer_classname = "HelloProto";
+
+package hello;
+
+
+message HelloRequest {
+    optional string helloText = 1;
+}
+
+message HelloResponse {
+    optional string helloText = 1;
+}
