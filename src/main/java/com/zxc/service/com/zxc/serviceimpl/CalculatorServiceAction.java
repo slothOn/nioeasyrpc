@@ -2,7 +2,7 @@ package com.zxc.service.com.zxc.serviceimpl;
 
 import com.zxc.nioeasyrpc.proto.CalculatorRequest;
 import com.zxc.nioeasyrpc.proto.CalculatorResponse;
-import com.zxc.rpc.EasyRpcService;
+import com.zxc.rpc.server.EasyRpcService;
 import com.zxc.service.CalculatorService;
 
 public class CalculatorServiceAction extends EasyRpcService implements CalculatorService {

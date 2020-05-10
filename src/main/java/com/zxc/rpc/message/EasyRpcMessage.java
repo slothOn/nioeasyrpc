@@ -1,8 +1,8 @@
-package com.zxc.rpc;
+package com.zxc.rpc.message;
 
 public class EasyRpcMessage {
-    String serviceName;
-    String serviceMethod;
+    public String serviceName;
+    public String serviceMethod;
 
-    byte[] messageData;
+    public byte[] messageData;
 }

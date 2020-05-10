@@ -1,5 +1,6 @@
-package com.zxc.rpc;
+package com.zxc.rpc.message;
 
+import com.zxc.rpc.message.MessageUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
