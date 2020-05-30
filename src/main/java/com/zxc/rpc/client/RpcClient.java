@@ -12,24 +12,29 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
+import java.lang.reflect.*;
+import java.util.concurrent.Callable;
 
 // bind to an RPC service
 public class RpcClient {
-    Bootstrap bootstrap;
-    Channel channel;
 
-    RpcResponseHolder rpcResponseHolder;
+    private RpcClientContext rpcClientContext;
 
-    public RpcClient() {
-        rpcResponseHolder = new RpcResponseHolder();
+    public RpcClient() {}
+
+    private void findService() {
+
     }
 
     private void connect() {
+        // return ip:port
+
+        this.rpcClientContext = new RpcClientContext();
+        this.rpcClientContext.setRpcResponseHolder(new RpcResponseHolder());
+
         NioEventLoopGroup workerGroup = new NioEventLoopGroup();
-        bootstrap = new Bootstrap();
+        this.rpcClientContext.setWorkerGroup(workerGroup);
+        Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(workerGroup).channel(NioSocketChannel.class)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
                 .option(ChannelOption.SO_KEEPALIVE, true)
@@ -39,7 +44,7 @@ public class RpcClient {
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ch.pipeline().addLast(new Spliter());
                         ch.pipeline().addLast(RpcMessageConverter.INSTANCE);
-                        ch.pipeline().addLast(new RpcResponseHandler(rpcResponseHolder));
+                        ch.pipeline().addLast(new RpcResponseHandler(rpcClientContext));
                     }
                 });
 
@@ -47,28 +52,32 @@ public class RpcClient {
         try {
             future.await();
             if (future.isSuccess()) {
-                this.channel = future.channel();
+                Channel channel = future.channel();
+                this.rpcClientContext.setChannel(channel);
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
+    public void disconnect() {
+        rpcClientContext.channel.close();
+        rpcClientContext.workerGroup.shutdownGracefully();
+    }
+
     public Object getService(Class<?> serviceClass) {
         this.connect();
-        InvocationHandler handler = new RpcInvocationHandler(this.channel, this.rpcResponseHolder);
+        InvocationHandler handler = new RpcInvocationHandler(rpcClientContext);
         return Proxy.newProxyInstance(
                 serviceClass.getClassLoader(), new Class[] {serviceClass}, handler);
     }
 
     static class RpcInvocationHandler implements InvocationHandler {
-        Channel channel;
-        RpcResponseHolder rpcResponseHolder;
+        RpcClientContext rpcClientContext;
 
         RpcInvocationHandler(
-                Channel channel, RpcResponseHolder rpcResponseHolder) {
-            this.channel = channel;
-            this.rpcResponseHolder = rpcResponseHolder;
+                RpcClientContext rpcClientContext) {
+            this.rpcClientContext = rpcClientContext;
         }
 
         @Override
@@ -79,41 +88,52 @@ public class RpcClient {
             byte[] protoRequestBytes = (byte[]) toByteArrayMethod.invoke(protoRequest);
             requestMsg.messageData = protoRequestBytes;
             requestMsg.serviceMethod = method.getName();
-            requestMsg.serviceName = proxy.getClass().getInterfaces()[0].getName();
+            String interfaceName = proxy.getClass().getInterfaces()[0].getName();
+            // remove "$Async"
+            requestMsg.serviceName = interfaceName.substring(0, interfaceName.length() - 6);
 
-            channel.writeAndFlush(requestMsg);
+            return rpcClientContext.workerGroup.submit(new Callable<AbstractMessage>() {
 
-            synchronized (rpcResponseHolder) {
-                if (!rpcResponseHolder.isPresent()) {
-                    rpcResponseHolder.wait(5000);
+                @Override
+                public AbstractMessage call() throws Exception {
+                    rpcClientContext.channel.writeAndFlush(requestMsg);
+                    RpcResponseHolder rpcResponseHolder = rpcClientContext.rpcResponseHolder;
+
+                    synchronized (rpcResponseHolder) {
+                        if (!rpcResponseHolder.isPresent()) {
+                            rpcResponseHolder.wait(5000);
+                        }
+                    }
+                    if (!rpcResponseHolder.isPresent()) {
+                        throw new IOException("Rpc time out");
+                    }
+                    EasyRpcMessage response = rpcResponseHolder.get();
+
+                    byte[] protoResponseBytes = response.messageData;
+                    ParameterizedType returnType = (ParameterizedType) method.getGenericReturnType();
+                    Method parseFromMethod =
+                            ((Class)returnType.getActualTypeArguments()[0]).getMethod("parseFrom", byte[].class);
+                    AbstractMessage protoResponse =
+                            (AbstractMessage) parseFromMethod.invoke(null, protoResponseBytes);
+                    return protoResponse;
                 }
-            }
-            if (!rpcResponseHolder.isPresent()) {
-                throw new IOException("Rpc time out");
-            }
-            EasyRpcMessage response = rpcResponseHolder.get();
-
-            byte[] protoResponseBytes = response.messageData;
-            Class<?> returnType = method.getReturnType();
-            Method parseFromMethod = returnType.getMethod("parseFrom", byte[].class);
-            AbstractMessage protoResponse = (AbstractMessage) parseFromMethod.invoke(null, protoResponseBytes);
-            return protoResponse;
+            });
         }
     }
 
     static class RpcResponseHandler extends SimpleChannelInboundHandler<EasyRpcMessage> {
 
-        RpcResponseHolder rpcResponseHolder;
+        RpcClientContext rpcClientContext;
 
-        RpcResponseHandler(RpcResponseHolder rpcResponseHolder) {
-            this.rpcResponseHolder = rpcResponseHolder;
+        RpcResponseHandler(RpcClientContext rpcClientContext) {
+            this.rpcClientContext = rpcClientContext;
         }
 
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, EasyRpcMessage msg) throws Exception {
-            synchronized (this.rpcResponseHolder) {
-                rpcResponseHolder.set(msg);
-                this.rpcResponseHolder.notify();
+            synchronized (rpcClientContext.rpcResponseHolder) {
+                rpcClientContext.rpcResponseHolder.set(msg);
+                this.rpcClientContext.rpcResponseHolder.notify();
             }
         }
     }
@@ -135,6 +155,38 @@ public class RpcClient {
 
         public boolean isPresent() {
             return rpcResponse != null;
+        }
+    }
+
+    static class RpcClientContext {
+        public Channel channel;
+        public RpcResponseHolder rpcResponseHolder;
+        public NioEventLoopGroup workerGroup;
+
+        public RpcClientContext() {}
+
+        public Channel getChannel() {
+            return channel;
+        }
+
+        public void setChannel(Channel channel) {
+            this.channel = channel;
+        }
+
+        public RpcResponseHolder getRpcResponseHolder() {
+            return rpcResponseHolder;
+        }
+
+        public void setRpcResponseHolder(RpcResponseHolder rpcResponseHolder) {
+            this.rpcResponseHolder = rpcResponseHolder;
+        }
+
+        public NioEventLoopGroup getWorkerGroup() {
+            return workerGroup;
+        }
+
+        public void setWorkerGroup(NioEventLoopGroup workerGroup) {
+            this.workerGroup = workerGroup;
         }
     }
 }

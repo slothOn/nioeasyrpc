@@ -24,6 +24,17 @@ public class RpcServer {
         map = new HashMap<>();
     }
 
+    public void addService(EasyRpcService service) {
+        Class<? extends EasyRpcService> serviceClass = service.getClass();
+        for (Method method : serviceClass.getMethods()) {
+            map.put(serviceClass.getInterfaces()[0].getName() + ":" + method.getName(), service);
+        }
+    }
+
+    private void registerServices() {
+
+    }
+
     public void start() throws IOException {
         // find a random port that's available
 
@@ -61,12 +72,4 @@ public class RpcServer {
             e.printStackTrace();
         }
     }
-
-    public void addService(EasyRpcService service) {
-        Class<? extends EasyRpcService> serviceClass = service.getClass();
-        for (Method method : serviceClass.getMethods()) {
-            map.put(serviceClass.getInterfaces()[0].getName() + ":" + method.getName(), service);
-        }
-    }
-
 }
