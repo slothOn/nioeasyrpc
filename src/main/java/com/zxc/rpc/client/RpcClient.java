@@ -2,6 +2,7 @@ package com.zxc.rpc.client;
 
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.AbstractMessageLite;
+import com.zxc.rpc.config.ZooKeeperConfig;
 import com.zxc.rpc.message.Spliter;
 import com.zxc.rpc.message.EasyRpcMessage;
 import com.zxc.rpc.message.RpcMessageConverter;
@@ -10,29 +11,70 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
 import java.lang.reflect.*;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 
 // bind to an RPC service
 public class RpcClient {
 
     private RpcClientContext rpcClientContext;
+    private CuratorFramework zkClient;
+    private NioEventLoopGroup workerGroup;
+    private Random random;
 
-    public RpcClient() {}
+    ConcurrentHashMap<String, List<String>> serviceMapCache;
 
-    private void findService() {
-
+    public RpcClient() {
+        serviceMapCache = new ConcurrentHashMap<>();
+        random = new Random(System.currentTimeMillis());
+        workerGroup = new NioEventLoopGroup();
+        zkClient = CuratorFrameworkFactory.newClient(
+                ZooKeeperConfig.ZK_CONN_ADDR, new ExponentialBackoffRetry(1000, 3));
+        zkClient.start();
     }
 
-    private void connect() {
-        // return ip:port
+    private String findService(String serviceName) {
+        if (!serviceMapCache.contains(serviceName)) {
+            String servicePath = "/nioeasyrpc/providers/" + serviceName;
+            try {
+                Stat stat = zkClient.checkExists().forPath(servicePath);
+                if (null != stat) {
+                    List<String> children = zkClient.getChildren().forPath(servicePath);
+                    serviceMapCache.put(servicePath, children);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        List<String> providers = serviceMapCache.get(serviceName);
+        String providerId = providers.get(random.nextInt(providers.size()));
+        try {
+            byte[] data = zkClient.getData().forPath("_" + providerId);
+            return String.valueOf(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private void connect(Class<?> serviceClass) {
+        String serviceAddr = findService(serviceClass.getName());
+        String serviceHost = serviceAddr.split(":")[0];
+        int servicePort = Integer.valueOf(serviceAddr.split(":")[1]);
 
         this.rpcClientContext = new RpcClientContext();
         this.rpcClientContext.setRpcResponseHolder(new RpcResponseHolder());
 
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup();
         this.rpcClientContext.setWorkerGroup(workerGroup);
         Bootstrap bootstrap = new Bootstrap();
         bootstrap.group(workerGroup).channel(NioSocketChannel.class)
@@ -48,7 +90,7 @@ public class RpcClient {
                     }
                 });
 
-        ChannelFuture future = bootstrap.connect("localhost", 8080);
+        ChannelFuture future = bootstrap.connect(serviceHost, servicePort);
         try {
             future.await();
             if (future.isSuccess()) {
@@ -66,7 +108,7 @@ public class RpcClient {
     }
 
     public Object getService(Class<?> serviceClass) {
-        this.connect();
+        this.connect(serviceClass);
         InvocationHandler handler = new RpcInvocationHandler(rpcClientContext);
         return Proxy.newProxyInstance(
                 serviceClass.getClassLoader(), new Class[] {serviceClass}, handler);
