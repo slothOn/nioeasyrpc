@@ -4,6 +4,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.zxc.nioeasyrpc.proto.HelloRequest;
 import com.zxc.nioeasyrpc.proto.HelloResponse;
 import com.zxc.rpc.client.RpcClient;
+import com.zxc.rpc.config.ZooKeeperConfig;
 import com.zxc.service.HelloService;
 
 import java.util.concurrent.ExecutionException;
@@ -11,6 +12,7 @@ import java.util.concurrent.Future;
 
 public class HelloServiceClientDemo {
     public static void main(String[] args) {
+        ZooKeeperConfig.ON = false;
         RpcClient client = new RpcClient();
         HelloService.Async service = (HelloService.Async) client.getService(HelloService.Async.class);
         HelloRequest request = HelloRequest.getDefaultInstance();

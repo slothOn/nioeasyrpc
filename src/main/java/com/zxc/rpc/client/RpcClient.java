@@ -42,7 +42,20 @@ public class RpcClient {
         zkClient.start();
     }
 
+    public void addServices(List<Class<?>> servicesList) {
+        for (Class<?> serviceClz : servicesList) {
+            String serviceName = serviceClz.getName();
+        }
+    }
+
+    private void initiateServiceMap() {
+
+    }
+
     private String findService(String serviceName) {
+        if (!ZooKeeperConfig.ON) {
+            return "localhost:8080";
+        }
         if (!serviceMapCache.contains(serviceName)) {
             String servicePath = "/nioeasyrpc/providers/" + serviceName;
             try {

@@ -25,27 +25,33 @@ import java.util.Map;
 public class RpcServer {
     int port = 8080;
 
-    Map<String, EasyRpcService> map;
+    Map<String, BaseEasyRpcService> map;
     CuratorFramework zkClient;
 
     protected RpcServer() {
         map = new HashMap<>();
     }
 
-    public void addService(EasyRpcService service) {
-        Class<? extends EasyRpcService> serviceClass = service.getClass();
+    public void addService(BaseEasyRpcService service) {
+        Class<? extends BaseEasyRpcService> serviceClass = service.getClass();
         for (Method method : serviceClass.getMethods()) {
-            map.put(serviceClass.getInterfaces()[0].getName() + ":" + method.getName(), service);
+            if (method.isAnnotationPresent(EasyRpcServerAnnotation.ServiceMethod.class)) {
+                map.put(serviceClass.getInterfaces()[0].getName() + ":" + method.getName(), service);
+            }
         }
     }
 
     private void registerServices() throws UnknownHostException {
+        if (!ZooKeeperConfig.ON) {
+            return;
+        }
+
         zkClient = CuratorFrameworkFactory.newClient(
                 ZooKeeperConfig.ZK_CONN_ADDR, new ExponentialBackoffRetry(1000, 3));
         String rpcServerAddress = InetAddress.getLocalHost().getHostAddress() + ":" + port;
         String serviceProviderPath = "/nioeasyrpc/providers/";
         zkClient.start();
-        for (Map.Entry<String, EasyRpcService> entry : map.entrySet()) {
+        for (Map.Entry<String, BaseEasyRpcService> entry : map.entrySet()) {
             try {
                 zkClient.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
                         .inBackground()

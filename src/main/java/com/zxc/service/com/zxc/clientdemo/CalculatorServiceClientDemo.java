@@ -3,6 +3,7 @@ package com.zxc.service.com.zxc.clientdemo;
 import com.zxc.nioeasyrpc.proto.CalculatorRequest;
 import com.zxc.nioeasyrpc.proto.CalculatorResponse;
 import com.zxc.rpc.client.RpcClient;
+import com.zxc.rpc.config.ZooKeeperConfig;
 import com.zxc.service.CalculatorService;
 
 import java.util.concurrent.ExecutionException;
@@ -12,7 +13,9 @@ import java.util.concurrent.Future;
 public class CalculatorServiceClientDemo {
 
     public static void main(String[] args) {
+        ZooKeeperConfig.ON = false;
         RpcClient client = new RpcClient();
+
         CalculatorService.Async service =
                 (CalculatorService.Async) client.getService(CalculatorService.Async.class);
         CalculatorRequest request = CalculatorRequest.newBuilder().setNum1(1).setNum2(2).build();

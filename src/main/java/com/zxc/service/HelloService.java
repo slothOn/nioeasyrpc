@@ -6,6 +6,7 @@ import com.zxc.nioeasyrpc.proto.HelloResponse;
 import java.util.concurrent.Future;
 
 public interface HelloService {
+
     HelloResponse sayHello(HelloRequest request);
 
     interface Async {
